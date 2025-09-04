@@ -41,6 +41,22 @@ export class ExpiryHandler {
     return `${minutes}分钟后过期`;
   }
 
+  static formatRemainingTime(timeInMs: number): string {
+    if (timeInMs <= 0) {
+      return '0分钟';
+    }
+
+    const totalMinutes = Math.floor(timeInMs / (1000 * 60));
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+
+    if (hours > 0) {
+      return minutes > 0 ? `${hours}小时${minutes}分钟` : `${hours}小时`;
+    }
+
+    return `${totalMinutes}分钟`;
+  }
+
   static mergeBookingData(cachedData: BookingData, newData: BookingData): BookingData {
     return {
       ...cachedData,

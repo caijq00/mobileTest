@@ -35,7 +35,8 @@ export class BookingDataManager {
       if (cachedData && !this.cacheManager.isCacheExpired(cachedData)) {
         console.log('BookingDataManager: 使用有效缓存数据');
         
-        if (ExpiryHandler.shouldRefreshData(cachedData.data)) {
+        const validityInfo = this.bookingService.checkDataValidity(cachedData.data);
+        if (validityInfo.needsRefresh) {
           console.log('BookingDataManager: 数据即将过期，后台刷新');
           this.refreshInBackground();
         }
@@ -154,5 +155,57 @@ export class BookingDataManager {
 
   getDataExpiryInfo(data: BookingData) {
     return ExpiryHandler.checkDataExpiry(data);
+  }
+
+  checkDataValidity(data?: BookingData) {
+    return this.bookingService.checkDataValidity(data);
+  }
+
+  setServiceConfig(config: {
+    defaultExpiryDuration?: number;
+    refreshThreshold?: number;
+    maxRetries?: number;
+    retryDelay?: number;
+  }): void {
+    this.bookingService.setConfig(config);
+  }
+
+  getServiceConfig() {
+    return this.bookingService.getConfig();
+  }
+
+  async getValidBookingData(): Promise<DataManagerResult<BookingData>> {
+    console.log('BookingDataManager: 获取有效预订数据');
+    
+    try {
+      const data = await this.bookingService.getValidBookingData();
+      const cachedData = await this.cacheManager.getCachedBookingData();
+      
+      return {
+        data,
+        isLoading: false,
+        isFromCache: cachedData?.data === data
+      };
+    } catch (error) {
+      console.error('BookingDataManager: 获取有效数据失败', error);
+      
+      const fallbackCachedData = await this.getFallbackCachedData();
+      if (fallbackCachedData) {
+        console.log('BookingDataManager: 使用过期缓存数据作为降级方案');
+        return {
+          data: fallbackCachedData.data,
+          error: error as Error,
+          isLoading: false,
+          isFromCache: true
+        };
+      }
+
+      return {
+        data: null,
+        error: error as Error,
+        isLoading: false,
+        isFromCache: false
+      };
+    }
   }
 }

@@ -10,12 +10,14 @@ import {
   RefreshControl
 } from 'react-native';
 import { useBookingData } from '../hooks/useBookingData';
+import { useRealTimeExpiry } from '../hooks/useRealTimeExpiry';
 import { Segment } from '../types/booking.types';
 import { ExpiryHandler } from '../utils/expiryHandler';
 import { ErrorHandler } from '../utils/errorHandler';
 
 const BookingList: React.FC = () => {
   const { data, isLoading, error, isFromCache, refresh, clearCache } = useBookingData(true);
+  const expiryInfo = useRealTimeExpiry(data);
 
   useEffect(() => {
     console.log('BookingList: 页面出现，当前数据:', JSON.stringify(data, null, 2));
@@ -71,18 +73,19 @@ const BookingList: React.FC = () => {
   const renderHeader = () => {
     if (!data) return null;
 
-    const expiryInfo = ExpiryHandler.checkDataExpiry(data);
-    const expiryText = ExpiryHandler.formatTimeUntilExpiry(expiryInfo.timeUntilExpiry);
+    // 使用实时更新的 expiryInfo，如果没有则使用静态计算的值作为后备
+    const currentExpiryInfo = expiryInfo || ExpiryHandler.checkDataExpiry(data);
+    const expiryText = expiryInfo?.formattedTime || ExpiryHandler.formatTimeUntilExpiry(currentExpiryInfo.timeUntilExpiry);
 
     return (
       <View style={styles.headerContainer}>
         <Text style={styles.title}>预订信息</Text>
         <View style={styles.infoRow}>
-          <Text style={styles.label}>船只参考:</Text>
+          <Text style={styles.label}>订单号:</Text>
           <Text style={styles.value}>{data.shipReference}</Text>
         </View>
         <View style={styles.infoRow}>
-          <Text style={styles.label}>船只Token:</Text>
+          <Text style={styles.label}>验证令牌:</Text>
           <Text style={styles.value}>{data.shipToken}</Text>
         </View>
         <View style={styles.infoRow}>
@@ -91,11 +94,16 @@ const BookingList: React.FC = () => {
         </View>
         <View style={styles.infoRow}>
           <Text style={styles.label}>持续时间:</Text>
-          <Text style={styles.value}>{data.duration} 分钟</Text>
+          <Text style={styles.value}>
+            {expiryInfo 
+              ? expiryInfo.formattedRemainingTime
+              : ExpiryHandler.formatRemainingTime(currentExpiryInfo.timeUntilExpiry)
+            }
+          </Text>
         </View>
         <View style={styles.infoRow}>
           <Text style={styles.label}>数据状态:</Text>
-          <Text style={[styles.value, expiryInfo.isExpired ? styles.expired : styles.valid]}>
+          <Text style={[styles.value, currentExpiryInfo.isExpired ? styles.expired : styles.valid]}>
             {expiryText}
           </Text>
         </View>
@@ -139,6 +147,8 @@ const BookingList: React.FC = () => {
           <RefreshControl refreshing={isLoading} onRefresh={handleRefresh} />
         }
         contentContainerStyle={styles.listContainer}
+        style={styles.flatListStyle}
+        showsVerticalScrollIndicator={true}
       />
       <View style={styles.buttonContainer}>
         <TouchableOpacity style={styles.button} onPress={handleRefresh}>
@@ -187,6 +197,10 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     padding: 16,
+    paddingBottom: 100,
+  },
+  flatListStyle: {
+    flex: 1,
   },
   headerContainer: {
     backgroundColor: '#fff',
